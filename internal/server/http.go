@@ -25,6 +25,8 @@ func NewHTTPServer(c *conf.Server, greeter *service.GreeterService, logger log.L
 	if c.Http.Timeout != nil {
 		opts = append(opts, http.Timeout(c.Http.Timeout.AsDuration()))
 	}
+	opts = append(opts, http.ResponseEncoder(ResponseEncoder))
+	opts = append(opts, http.ErrorEncoder(ErrorEncoder))
 	srv := http.NewServer(opts...)
 	v1.RegisterGreeterHTTPServer(srv, greeter)
 	return srv
