@@ -1,0 +1,88 @@
+name: zhiyusec-platform
+
+services:
+  etcd:
+    container_name: etcd
+    privileged: true
+    restart: always
+    image: quay.io/coreos/etcd:v3.6.5
+    environment:
+      - ETCD_NAME=etcd
+      - ETCD_DATA_DIR=/var/etcd
+      - ETCD_LISTEN_CLIENT_URLS=http://0.0.0.0:2379
+      - ETCD_ADVERTISE_CLIENT_URLS=http://0.0.0.0:2379
+      - ETCD_LISTEN_PEER_URLS=http://0.0.0.0:2380
+      - ETCD_INITIAL_ADVERTISE_PEER_URLS=http://0.0.0.0:2380
+      - ETCD_INITIAL_CLUSTER_TOKEN=etcd-cluster
+      - ETCD_INITIAL_CLUSTER=etcd=http://0.0.0.0:2380
+      - ETCD_INITIAL_CLUSTER_STATE=new
+      - ETCD_LOGGER=zap
+      - ETCD_LOG_LEVEL=info
+      - TZ=Asia/Shanghai
+    volumes:
+      - ./data/etcd:/var/etcd
+      - ./logs/etcd:/var/log/etcd
+      - ./config/etcd:/etc/etcd
+    ports:
+      - "2379:2379"
+      - "2380:2380"
+    healthcheck:
+      test: [ 'CMD', 'etcdctl', 'endpoint', 'health' ]
+      interval: 5s
+      timeout: 10s
+      retries: 10
+      start_period: 10s
+    networks:
+      - zhiyusec-network
+
+  redis:
+    container_name: redis
+    hostname: redis
+    image: redis:8.0
+    privileged: true
+    restart: always
+    ports:
+      - "6379:6379"
+    command: redis-server --save 20 1 --loglevel warning --requirepass @T-Detecon.2025zhiyusec --maxmemory 1gb --maxmemory-policy allkeys-lru
+    volumes:
+      - ./data/redis:/data
+      - ./logs/redis:/var/log/redis
+      - ./config/redis:/etc/redis
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "@T-Detecon.2025zhiyusec", "ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - zhiyusec-network
+
+  postgres:
+    image: postgres:16
+    container_name: postgres
+    privileged: true
+    restart: always
+    environment:
+      POSTGRES_USER: zhiyusec
+      POSTGRES_PASSWORD: "@T-Detecon.2025zhiyusec"
+      POSTGRES_DB: zhiyusec
+      TZ: Asia/Shanghai
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+      - ./logs/postgres:/var/log/postgresql
+      - ./config/postgres:/etc/postgresql
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U zhiyusec" ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - zhiyusec-network
+
+networks:
+  zhiyusec-network:
+    name: zhiyusec-network
+    driver: bridge

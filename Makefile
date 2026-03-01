@@ -23,7 +23,9 @@ init:
 	go install github.com/go-kratos/kratos/cmd/kratos/v2@latest
 	go install github.com/go-kratos/kratos/cmd/protoc-gen-go-http/v2@latest
 	go install github.com/google/gnostic/cmd/protoc-gen-openapi@latest
+	go install github.com/envoyproxy/protoc-gen-validate@latest
 	go install github.com/google/wire/cmd/wire@latest
+	go install entgo.io/ent/cmd/ent@latest
 
 .PHONY: config
 # generate internal proto
@@ -44,6 +46,24 @@ api:
 	       --openapi_out=fq_schema_naming=true,default_response=false:. \
 	       $(API_PROTO_FILES)
 
+.PHONY: errors
+# errors
+errors:
+	protoc --proto_path=. \
+             --proto_path=./third_party \
+             --go_out=paths=source_relative:./ \
+             --go-errors_out=paths=source_relative:. \
+             $(API_PROTO_FILES)
+
+.PHONY: validate
+# generate validate proto
+validate:
+		protoc --proto_path=. \
+			   --proto_path=./third_party \
+			   --go_out=paths=source_relative:. \
+			   --validate_out=paths=source_relative,lang=go:. \
+			   $(API_PROTO_FILES)
+
 .PHONY: build
 # build
 build:
@@ -61,6 +81,9 @@ all:
 	make api
 	make config
 	make generate
+	make errors
+	make validate
+	make build
 
 # show help
 help:
