@@ -2,11 +2,13 @@ package conf
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"time"
+
+	"gopkg.in/yaml.v3"
 )
 
-// Duration is a duration that can be unmarshaled from a string like "1s".
-// It works with both YAML (via TextUnmarshaler) and JSON (via UnmarshalJSON).
 type Duration time.Duration
 
 func (d *Duration) UnmarshalJSON(b []byte) error {
@@ -31,12 +33,10 @@ func (d *Duration) UnmarshalText(text []byte) error {
 	return nil
 }
 
-// MarshalJSON returns the duration as a JSON string.
 func (d Duration) MarshalJSON() ([]byte, error) {
 	return json.Marshal(time.Duration(d).String())
 }
 
-// AsDuration returns the duration as a time.Duration.
 func (d Duration) AsDuration() time.Duration {
 	return time.Duration(d)
 }
@@ -71,4 +71,26 @@ type DataRedis struct {
 	Addr         string   `yaml:"addr"`
 	ReadTimeout  Duration `yaml:"read_timeout"`
 	WriteTimeout Duration `yaml:"write_timeout"`
+}
+
+// Load reads all yaml files in the config directory and returns a Bootstrap.
+func Load(path string) (*Bootstrap, error) {
+	entries, err := os.ReadDir(path)
+	if err != nil {
+		return nil, err
+	}
+	bc := &Bootstrap{}
+	for _, entry := range entries {
+		if entry.IsDir() || filepath.Ext(entry.Name()) != ".yaml" {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(path, entry.Name()))
+		if err != nil {
+			return nil, err
+		}
+		if err := yaml.Unmarshal(data, bc); err != nil {
+			return nil, err
+		}
+	}
+	return bc, nil
 }

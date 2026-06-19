@@ -8,7 +8,8 @@ import (
 	"time"
 
 	v1 "github.com/zhiyusec/kratos-layout/api/todo/v1"
-	"github.com/zhiyusec/kratos-layout/internal/biz"
+	"github.com/zhiyusec/kratos-layout/internal/logic"
+	"github.com/zhiyusec/kratos-layout/internal/repo"
 
 	"go.einride.tech/aip/fieldmask"
 	"go.einride.tech/aip/filtering"
@@ -18,41 +19,33 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-const (
-	defaultPageSize = 20
-)
+const defaultPageSize = 20
 
-// TodoService is a todo service.
 type TodoService struct {
 	v1.UnimplementedTodoServiceServer
-
-	uc *biz.TodoUsecase
+	logic *logic.TodoLogic
 }
 
-// NewTodoService new a todo service.
-func NewTodoService(uc *biz.TodoUsecase) *TodoService {
-	return &TodoService{uc: uc}
+func NewTodoService(logic *logic.TodoLogic) *TodoService {
+	return &TodoService{logic: logic}
 }
 
-// CreateTodo creates a todo item.
 func (s *TodoService) CreateTodo(ctx context.Context, req *v1.CreateTodoRequest) (*v1.Todo, error) {
-	todo, err := s.uc.CreateTodo(ctx, convertTodo(req.GetTodo()))
+	todo, err := s.logic.Create(ctx, convertTodo(req.GetTodo()))
 	if err != nil {
 		return nil, err
 	}
 	return convertTodoReply(todo), nil
 }
 
-// GetTodo returns a todo item by ID.
 func (s *TodoService) GetTodo(ctx context.Context, req *v1.GetTodoRequest) (*v1.Todo, error) {
-	todo, err := s.uc.GetTodo(ctx, req.GetId())
+	todo, err := s.logic.Get(ctx, req.GetId())
 	if err != nil {
 		return nil, err
 	}
 	return convertTodoReply(todo), nil
 }
 
-// ListTodos lists todo items.
 func (s *TodoService) ListTodos(ctx context.Context, req *v1.ListTodosRequest) (*v1.TodoSet, error) {
 	declarations, err := filtering.NewDeclarations(
 		filtering.DeclareStandardFunctions(),
@@ -66,8 +59,7 @@ func (s *TodoService) ListTodos(ctx context.Context, req *v1.ListTodosRequest) (
 	if err != nil {
 		return nil, err
 	}
-	filter, err := filtering.ParseFilter(req, declarations)
-	if err != nil {
+	if _, err := filtering.ParseFilter(req, declarations); err != nil {
 		return nil, err
 	}
 	pageToken, err := pagination.ParsePageToken(req)
@@ -84,12 +76,7 @@ func (s *TodoService) ListTodos(ctx context.Context, req *v1.ListTodosRequest) (
 	if req.PageSize <= 0 {
 		req.PageSize = defaultPageSize
 	}
-	todos, err := s.uc.ListTodos(ctx,
-		biz.ListFilter(filter),
-		biz.ListOrderBy(orderBy),
-		biz.ListLimit(int(req.PageSize)),
-		biz.ListOffset(int(pageToken.Offset)),
-	)
+	todos, err := s.logic.List(ctx, int(pageToken.Offset), int(req.PageSize))
 	if err != nil {
 		return nil, err
 	}
@@ -105,32 +92,29 @@ func (s *TodoService) ListTodos(ctx context.Context, req *v1.ListTodosRequest) (
 	return set, nil
 }
 
-// UpdateTodo updates a todo item.
 func (s *TodoService) UpdateTodo(ctx context.Context, req *v1.UpdateTodoRequest) (*v1.Todo, error) {
 	if req.GetTodo().GetId() <= 0 || req.GetUpdateMask() == nil || len(req.GetUpdateMask().GetPaths()) == 0 {
-		return nil, biz.ErrTodoInvalidArgument
+		return nil, repo.ErrTodoInvalidArgument
 	}
 	current, err := s.GetTodo(ctx, &v1.GetTodoRequest{Id: req.GetTodo().GetId()})
 	if err != nil {
 		return nil, err
 	}
 	fieldmask.Update(req.GetUpdateMask(), current, req.GetTodo())
-	todo, err := s.uc.UpdateTodo(ctx, convertTodo(current))
+	todo, err := s.logic.Update(ctx, convertTodo(current))
 	if err != nil {
 		return nil, err
 	}
 	return convertTodoReply(todo), nil
 }
 
-// DeleteTodo deletes a todo item.
 func (s *TodoService) DeleteTodo(ctx context.Context, req *v1.DeleteTodoRequest) (*emptypb.Empty, error) {
-	if err := s.uc.DeleteTodo(ctx, req.GetId()); err != nil {
+	if err := s.logic.Delete(ctx, req.GetId()); err != nil {
 		return nil, err
 	}
 	return &emptypb.Empty{}, nil
 }
 
-// WatchTodos streams todo snapshots from the server to the client.
 func (s *TodoService) WatchTodos(req *v1.WatchTodosRequest, stream v1.TodoService_WatchTodosServer) error {
 	declarations, err := filtering.NewDeclarations(
 		filtering.DeclareStandardFunctions(),
@@ -144,8 +128,7 @@ func (s *TodoService) WatchTodos(req *v1.WatchTodosRequest, stream v1.TodoServic
 	if err != nil {
 		return err
 	}
-	filter, err := filtering.ParseFilter(req, declarations)
-	if err != nil {
+	if _, err := filtering.ParseFilter(req, declarations); err != nil {
 		return err
 	}
 	pageToken, err := pagination.ParsePageToken(req)
@@ -162,12 +145,7 @@ func (s *TodoService) WatchTodos(req *v1.WatchTodosRequest, stream v1.TodoServic
 	if req.PageSize <= 0 {
 		req.PageSize = defaultPageSize
 	}
-	todos, err := s.uc.ListTodos(stream.Context(),
-		biz.ListFilter(filter),
-		biz.ListOrderBy(orderBy),
-		biz.ListLimit(int(req.PageSize)),
-		biz.ListOffset(int(pageToken.Offset)),
-	)
+	todos, err := s.logic.List(stream.Context(), int(pageToken.Offset), int(req.PageSize))
 	if err != nil {
 		return err
 	}
@@ -179,7 +157,6 @@ func (s *TodoService) WatchTodos(req *v1.WatchTodosRequest, stream v1.TodoServic
 	return nil
 }
 
-// SyncTodos exchanges todo changes in both directions.
 func (s *TodoService) SyncTodos(stream v1.TodoService_SyncTodosServer) error {
 	for {
 		req, err := stream.Recv()
@@ -220,7 +197,7 @@ func (s *TodoService) SyncTodos(stream v1.TodoService_SyncTodosServer) error {
 				EventTime: timestamppb.Now(),
 			}
 		default:
-			return biz.ErrTodoInvalidArgument
+			return repo.ErrTodoInvalidArgument
 		}
 		if err := stream.Send(event); err != nil {
 			return err
@@ -228,11 +205,11 @@ func (s *TodoService) SyncTodos(stream v1.TodoService_SyncTodosServer) error {
 	}
 }
 
-func convertTodo(in *v1.Todo) *biz.Todo {
+func convertTodo(in *v1.Todo) *repo.Todo {
 	if in == nil {
 		return nil
 	}
-	return &biz.Todo{
+	return &repo.Todo{
 		ID:        in.GetId(),
 		Title:     in.GetTitle(),
 		Content:   in.GetContent(),
@@ -240,7 +217,7 @@ func convertTodo(in *v1.Todo) *biz.Todo {
 	}
 }
 
-func newTodoEvent(action string, todo *biz.Todo) *v1.TodoEvent {
+func newTodoEvent(action string, todo *repo.Todo) *v1.TodoEvent {
 	return &v1.TodoEvent{
 		Action:    action,
 		Todo:      convertTodoReply(todo),
@@ -248,7 +225,7 @@ func newTodoEvent(action string, todo *biz.Todo) *v1.TodoEvent {
 	}
 }
 
-func convertTodoReply(in *biz.Todo) *v1.Todo {
+func convertTodoReply(in *repo.Todo) *v1.Todo {
 	if in == nil {
 		return nil
 	}

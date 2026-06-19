@@ -7,28 +7,26 @@ import (
 
 	"github.com/go-kratos/kratos/contrib/otel/v3/tracing"
 	"github.com/go-kratos/kratos/v3"
-	"github.com/go-kratos/kratos/v3/config"
-	"github.com/go-kratos/kratos/v3/config/file"
 	"github.com/go-kratos/kratos/v3/log"
 	"github.com/go-kratos/kratos/v3/transport/grpc"
 	"github.com/zhiyusec/kratos-layout/internal/conf"
+	"github.com/zhiyusec/kratos-layout/internal/logic"
+	"github.com/zhiyusec/kratos-layout/internal/repo"
+	"github.com/zhiyusec/kratos-layout/internal/server"
+	"github.com/zhiyusec/kratos-layout/internal/service"
+
 	_ "go.uber.org/automaxprocs"
 )
 
-// go build -ldflags "-X main.Version=x.y.z"
 var (
-	// Name is the name of the compiled software.
-	Name string
-	// Version is the version of the compiled software.
-	Version string
-	// flagconf is the config flag.
+	Name     string
+	Version  string
 	flagconf string
-
-	id, _ = os.Hostname()
+	id, _    = os.Hostname()
 )
 
 func init() {
-	flag.StringVar(&flagconf, "conf", "../../configs", "config path, eg: -conf config.yaml")
+	flag.StringVar(&flagconf, "conf", "../../configs", "config path, eg: -conf ../../configs")
 }
 
 func newApp(logger *slog.Logger, gs *grpc.Server) *kratos.App {
@@ -38,9 +36,7 @@ func newApp(logger *slog.Logger, gs *grpc.Server) *kratos.App {
 		kratos.Version(Version),
 		kratos.Metadata(map[string]string{}),
 		kratos.Logger(logger),
-		kratos.Server(
-			gs,
-		),
+		kratos.Server(gs),
 	)
 }
 
@@ -58,29 +54,20 @@ func main() {
 		slog.String("service.version", Version),
 	)
 	log.SetDefault(logger)
-	c := config.New(
-		config.WithSource(
-			file.NewSource(flagconf),
-		),
-	)
-	defer c.Close()
 
-	if err := c.Load(); err != nil {
-		panic(err)
-	}
-
-	var bc conf.Bootstrap
-	if err := c.Scan(&bc); err != nil {
-		panic(err)
-	}
-
-	app, cleanup, err := wireApp(bc.Server, bc.Data, logger)
+	bc, err := conf.Load(flagconf)
 	if err != nil {
 		panic(err)
 	}
-	defer cleanup()
 
-	// start and wait for stop signal
+	// 3 layers: repo -> logic -> service
+	todoRepo := repo.NewTodoRepo()
+	todoLogic := logic.NewTodoLogic(todoRepo)
+	todoSvc := service.NewTodoService(todoLogic)
+
+	grpcSrv := server.NewGRPCServer(bc.Server, todoSvc)
+	app := newApp(logger, grpcSrv)
+
 	if err := app.Run(); err != nil {
 		panic(err)
 	}

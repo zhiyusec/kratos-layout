@@ -3,16 +3,15 @@ module github.com/zhiyusec/kratos-layout
 go 1.26
 
 require (
-	github.com/google/wire v0.7.0
 	go.einride.tech/aip v0.86.3
 	go.uber.org/automaxprocs v1.6.0
 	google.golang.org/grpc v1.81.1
 	google.golang.org/protobuf v1.36.11
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
-	github.com/fsnotify/fsnotify v1.10.1 // indirect
 	github.com/gorilla/websocket v1.5.3 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260615183401-62b3387ff324 // indirect
@@ -34,7 +33,6 @@ require (
 	golang.org/x/sys v0.46.0 // indirect
 	golang.org/x/text v0.38.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260615183401-62b3387ff324 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
 replace github.com/go-kratos/kratos/v3 v3.0.0 => github.com/go-kratos/kratos/v3 v3.0.0-20260617100506-4e232a3eff59

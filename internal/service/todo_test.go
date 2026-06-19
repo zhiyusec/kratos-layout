@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	v1 "github.com/zhiyusec/kratos-layout/api/todo/v1"
-	"github.com/zhiyusec/kratos-layout/internal/biz"
-	"github.com/zhiyusec/kratos-layout/internal/data"
+	"github.com/zhiyusec/kratos-layout/internal/logic"
+	"github.com/zhiyusec/kratos-layout/internal/repo"
 
 	kratoserrors "github.com/go-kratos/kratos/v3/errors"
 	"google.golang.org/grpc/metadata"
@@ -15,9 +15,9 @@ import (
 )
 
 func newTestTodoService() *TodoService {
-	repo := data.NewTodoRepo(&data.Data{})
-	uc := biz.NewTodoUsecase(repo)
-	return NewTodoService(uc)
+	r := repo.NewTodoRepo()
+	l := logic.NewTodoLogic(r)
+	return NewTodoService(l)
 }
 
 func TestTodoServiceCRUD(t *testing.T) {

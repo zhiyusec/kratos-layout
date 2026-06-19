@@ -3,9 +3,8 @@ GOPATH:=$(shell go env GOPATH)
 VERSION=$(shell git describe --tags --always)
 
 .PHONY: init
-# init env
+# init tools
 init:
-	go install github.com/google/wire/cmd/wire@latest
 	go install github.com/bufbuild/buf/cmd/buf@latest
 
 .PHONY: api
@@ -18,17 +17,15 @@ api:
 build:
 	mkdir -p bin/ && go build -ldflags "-X main.Version=$(VERSION)" -o ./bin/ ./...
 
-.PHONY: generate
-# generate
-generate:
-	go generate ./...
-	go mod tidy
+.PHONY: test
+# run tests
+test:
+	go test ./...
 
-.PHONY: all
-# generate all
-all:
-	make api
-	make generate
+.PHONY: tidy
+# tidy dependencies
+tidy:
+	go mod tidy
 
 # show help
 help:
